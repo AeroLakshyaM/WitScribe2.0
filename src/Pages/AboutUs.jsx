@@ -10,9 +10,6 @@ import manwrit from "../assets/manwriting.webp"
 import personal from "../assets/persononlaptop.webp"
 import star from "../assets/star-trail-removebg-preview.webp"
 import laks from "../assets/lakshya1.webp"
-import anug from "../assets/anugrah.webp"
-import vicky from "../assets/mrajarao.webp"
-import lassi from "../assets/lasika.webp"
 
 const AboutUs = () => {
   return (
@@ -258,48 +255,59 @@ const AboutUs = () => {
               <p className="text-xl text-gray-300">A perfect blend of creativity & technical wizardry</p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-              {[
-                { name: "Lakshya Mishra", image: laks },
-                { name: "Anugrah Sharma", image: anug },
-                { name: "M. Raja Rao Reddy", image: vicky },
-                { name: "Lasika Rathore", image: lassi },
-              ].map((member, i) => (
-                <div
-                  key={i}
-                  className="group bg-white/10 backdrop-blur-sm rounded-2xl p-8 text-center hover:bg-white/20 transition-all duration-500 border border-white/10 hover:border-white/30"
-                >
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-red-600 rounded-full blur-lg opacity-0 group-hover:opacity-50 transition-opacity duration-500"></div>
+            <div className="max-w-5xl mx-auto">
+              <div className="group bg-white/10 backdrop-blur-sm rounded-3xl p-8 md:p-10 border border-white/10 hover:border-white/30 hover:bg-white/15 transition-all duration-500 shadow-2xl">
+                <div className="flex flex-col md:flex-row md:items-center gap-8">
+                  <div className="relative flex-shrink-0 mx-auto md:mx-0">
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-red-600 rounded-full blur-xl opacity-40 group-hover:opacity-70 transition-opacity duration-500"></div>
                     <img
                       loading="lazy"
-                      src={member.image || `/placeholder.svg?height=120&width=120`}
-                      alt={member.name}
-                      className="relative w-32 h-32 mx-auto rounded-full object-cover border-4 border-red-500 group-hover:scale-110 transition-transform duration-500 shadow-xl"
+                      src={laks || "/placeholder.svg?height=180&width=180"}
+                      alt="Lakshya Mishra"
+                      className="relative w-40 h-40 md:w-44 md:h-44 rounded-full object-cover border-4 border-red-500 shadow-2xl"
                     />
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-4 group-hover:text-red-400 transition-colors duration-300">
-                    {member.name}
-                  </h3>
-                  <div className="flex justify-center gap-4">
-                    {[
-                      { icon: FaInstagram, href: "https://instagram.com" },
-                      { icon: FaLinkedin, href: "https://linkedin.com" },
-                      { icon: FaTwitter, href: "https://twitter.com" },
-                    ].map((social, idx) => (
-                      <a
-                        key={idx}
-                        href={social.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-red-500 hover:text-white hover:-translate-y-1 transition-all duration-300"
-                      >
-                        <social.icon size={20} />
-                      </a>
-                    ))}
+
+                  <div className="flex-1 text-center md:text-left">
+                    <p className="text-sm uppercase tracking-[0.3em] text-red-300 mb-2">Founder</p>
+                    <h3 className="text-3xl md:text-4xl font-bold text-white mb-3">Lakshya Mishra</h3>
+                    <p className="text-gray-200 text-base md:text-lg leading-relaxed mb-6 max-w-3xl">
+                      Building WitScribe to make learning feel lighter, faster, and more personal. Focused on turning
+                      long-form videos into practical study flows with summaries, quizzes, and accessibility-first
+                      features that help learners stay consistent every day.
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-4 mb-6">
+                      <div className="bg-white/10 rounded-xl px-4 py-3 border border-white/10">
+                        <p className="text-xs uppercase tracking-wide text-gray-300">Core Focus</p>
+                        <p className="text-white font-semibold">AI-Powered Learning Experience</p>
+                      </div>
+                      <div className="bg-white/10 rounded-xl px-4 py-3 border border-white/10">
+                        <p className="text-xs uppercase tracking-wide text-gray-300">Vision</p>
+                        <p className="text-white font-semibold">Accessible Study Tools for Everyone</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center md:justify-start gap-4">
+                      {[
+                        { icon: FaInstagram, href: "https://instagram.com" },
+                        { icon: FaLinkedin, href: "https://linkedin.com" },
+                        { icon: FaTwitter, href: "https://twitter.com" },
+                      ].map((social, idx) => (
+                        <a
+                          key={idx}
+                          href={social.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-11 h-11 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-red-500 hover:text-white hover:-translate-y-1 transition-all duration-300"
+                        >
+                          <social.icon size={20} />
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         </div>

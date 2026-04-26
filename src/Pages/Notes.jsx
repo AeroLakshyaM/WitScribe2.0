@@ -236,6 +236,7 @@ function AccordionQuestion({ question }) {
   const [answer, setAnswer] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
+  const geminiModel = import.meta.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview"
 
   // Function to fetch answer from Gemini API with proper error handling
   const fetchGeminiAnswer = async () => {
@@ -262,42 +263,62 @@ function AccordionQuestion({ question }) {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      const response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Please provide a clear and concise answer to this question: ${question}`,
-                  },
-                ],
-              },
-            ],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1024,
+      let response
+      let errorText = ""
+      let data
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey,
             },
-          }),
-          signal: controller.signal,
-        },
-      )
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `Please provide a clear and concise answer to this question: ${question}`,
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 1024,
+              },
+            }),
+            signal: controller.signal,
+          },
+        )
+
+        if (response.ok) {
+          data = await response.json()
+          break
+        }
+
+        errorText = await response.text().catch(() => "")
+
+        if (response.status !== 429 || attempt === 3) {
+          break
+        }
+
+        const retryDelayMs = 600 * attempt
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      }
 
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const errorData = await response.text()
-        console.error("API Error Response:", errorData)
+        console.error("API Error Response:", errorText)
+        if (response.status === 429) {
+          throw new Error("Gemini rate limit reached. Please wait a moment and try again.")
+        }
         throw new Error(`API Error: ${response.status} - ${response.statusText}`)
       }
-
-      const data = await response.json()
 
       // Extract the answer from the response with better error handling
       if (

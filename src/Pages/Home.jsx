@@ -15,6 +15,7 @@ const Home = () => {
     "sd_a4bb48c811685b2bc4911cfc5434188e"
   // Read Gemini API key from Vite env
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+  const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview"
 
   const getYouTubeVideoId = (url) => {
     const regexes = [
@@ -81,7 +82,7 @@ const Home = () => {
       throw new Error("VITE_GEMINI_API_KEY is not configured. Please set it in the .env file and restart the dev server.")
     }
 
-    const apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+    const apiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`
     const payload = {
       contents: [
         {
@@ -104,17 +105,38 @@ const Home = () => {
       },
     }
 
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    })
+    let response
+    let data
 
-    const data = await response.json()
-    if (!response.ok || data.error) {
-      throw new Error("Failed to generate notes with AI")
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      response = await fetch(apiEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      data = await response.json().catch(() => ({}))
+
+      if (response.ok && !data.error) {
+        break
+      }
+
+      if (response.status !== 429 || attempt === 3) {
+        break
+      }
+
+      const retryDelayMs = 600 * attempt
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+
+    if (!response?.ok || data?.error) {
+      const apiMessage = data?.error?.message
+      if (response?.status === 429) {
+        throw new Error("Gemini rate limit reached. Please wait a moment and try again.")
+      }
+      throw new Error(apiMessage || "Failed to generate notes with AI")
     }
 
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "No content returned."

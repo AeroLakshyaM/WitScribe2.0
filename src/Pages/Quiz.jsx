@@ -7,6 +7,7 @@ import Navbar from "../Components/Navbar"
 
 // Read Gemini API key from Vite environment variables
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview"
 
 export default function Quiz1() {
   const [quizTopic, setQuizTopic] = useState("")
@@ -40,20 +41,45 @@ Respond in JSON format like:
   }
 ]`
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        },
-      )
+      let res
+      let data
 
-      const data = await res.json()
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+            }),
+          },
+        )
+
+        data = await res.json().catch(() => ({}))
+
+        if (res.ok && !data.error) {
+          break
+        }
+
+        if (res.status !== 429 || attempt === 3) {
+          break
+        }
+
+        const retryDelayMs = 600 * attempt
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      }
+
+      if (!res?.ok || data?.error) {
+        const apiMessage = data?.error?.message
+        if (res?.status === 429) {
+          throw new Error("Gemini rate limit reached. Please wait a moment and try again.")
+        }
+        throw new Error(apiMessage || "Failed to generate quiz")
+      }
+
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || ""
 
       let quizData = []
@@ -72,7 +98,7 @@ Respond in JSON format like:
       navigate("/playquiz", { state: { quizData, topic: quizTopic.trim() } })
     } catch (err) {
       console.error("Gemini API Error:", err)
-      alert("Something went wrong while generating the quiz.")
+      alert(err.message || "Something went wrong while generating the quiz.")
     } finally {
       setLoading(false)
     }
