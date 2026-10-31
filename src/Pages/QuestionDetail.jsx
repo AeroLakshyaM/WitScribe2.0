@@ -3,21 +3,16 @@
 // QuestionDetail.jsx (Detail page for a single question)
 import { useState, useEffect } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
-import { db } from "../firebase"
+import { useAuth } from "../context/useAuth"
 import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  orderBy,
-  updateDoc,
-  deleteDoc,
-  arrayUnion,
-  arrayRemove,
-  increment,
-  onSnapshot,
-} from "firebase/firestore"
-import { useAuth } from "../context/AuthContext"
+  addQuestionComment,
+  deleteQuestion,
+  deleteQuestionComment,
+  getQuestionDetail,
+  getRelatedQuestions,
+  subscribeToQuestion,
+  toggleQuestionLike,
+} from "../services/communityService"
 
 export default function QuestionDetail() {
   const { questionId } = useParams()
@@ -29,51 +24,40 @@ export default function QuestionDetail() {
   const [loading, setLoading] = useState(true)
   const [relatedQuestions, setRelatedQuestions] = useState([])
 
-  // Fetch question with real-time updates
+  // Fetch the question and its related data, then refresh on database changes.
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      doc(db, "questions", questionId),
-      (doc) => {
-        if (doc.exists()) {
-          const questionData = {
-            id: doc.id,
-            ...doc.data(),
-            isLiked: currentUser ? (doc.data().likedBy || []).includes(currentUser.uid) : false,
-          }
-          setQuestion(questionData)
-          setLoading(false)
-        } else {
-          console.log("No such question!")
-          navigate("/community")
-        }
-      },
-      (error) => {
-        console.error("Error fetching question:", error)
-        setLoading(false)
-      },
-    )
-
-    // Fetch related questions (not real-time)
-    const fetchRelatedQuestions = async () => {
+    let active = true
+    const refreshQuestion = async () => {
       try {
-        const q = query(collection(db, "questions"), orderBy("likes", "desc"))
-
-        const querySnapshot = await getDocs(q)
-        const relatedData = querySnapshot.docs
-          .map((doc) => ({ id: doc.id, ...doc.data() }))
-          .filter((q) => q.id !== questionId)
-          .slice(0, 5)
-
-        setRelatedQuestions(relatedData)
+        const result = await getQuestionDetail(questionId, currentUser?.id)
+        if (!active) return
+        if (!result) {
+          navigate("/community")
+          return
+        }
+        setQuestion(result)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error fetching question:", error)
+        if (active) setLoading(false)
+      }
+    }
+    const refreshRelated = async () => {
+      try {
+        const result = await getRelatedQuestions(questionId, currentUser?.id)
+        if (active) setRelatedQuestions(result)
       } catch (error) {
         console.error("Error fetching related questions:", error)
       }
     }
-
-    fetchRelatedQuestions()
-
-    return () => unsubscribe()
-  }, [questionId, currentUser, navigate])
+    refreshQuestion()
+    refreshRelated()
+    const channel = subscribeToQuestion(questionId, refreshQuestion, (error) => console.error(error))
+    return () => {
+      active = false
+      channel.unsubscribe()
+    }
+  }, [questionId, currentUser?.id, navigate])
 
   const handleDeleteQuestion = async () => {
     if (!currentUser) {
@@ -93,7 +77,7 @@ export default function QuestionDetail() {
 
     try {
       // Delete the question document
-      await deleteDoc(doc(db, "questions", questionId))
+      await deleteQuestion(questionId)
 
       // Navigate back to community page
       navigate("/community")
@@ -109,15 +93,8 @@ export default function QuestionDetail() {
       return
     }
 
-    const userId = currentUser.uid
-    const questionRef = doc(db, "questions", questionId)
-    const isLiked = question.likedBy?.includes(userId)
-
     try {
-      await updateDoc(questionRef, {
-        likes: isLiked ? increment(-1) : increment(1),
-        likedBy: isLiked ? question.likedBy.filter((uid) => uid !== userId) : [...(question.likedBy || []), userId],
-      })
+      await toggleQuestionLike(questionId, currentUser.id, question.isLiked)
     } catch (error) {
       console.error("Error updating question like:", error)
     }
@@ -134,20 +111,7 @@ export default function QuestionDetail() {
     if (!newComment.trim()) return
 
     try {
-      const commentData = {
-        id: `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate a unique ID
-        author: currentUser.displayName || currentUser.email,
-        authorId: currentUser.uid,
-        text: newComment,
-        timestamp: new Date().toISOString(),
-      }
-
-      const questionRef = doc(db, "questions", questionId)
-
-      // Add comment to the question document
-      await updateDoc(questionRef, {
-        comments: arrayUnion(commentData),
-      })
+      await addQuestionComment(questionId, currentUser, newComment)
 
       setNewComment("")
     } catch (error) {
@@ -156,13 +120,14 @@ export default function QuestionDetail() {
     }
   }
 
-  const handleDeleteComment = async (commentIndex) => {
+  const handleDeleteComment = async (commentId) => {
     if (!currentUser) {
       alert("Please sign in to delete comments")
       return
     }
 
-    const commentToDelete = question.comments[commentIndex]
+    const commentToDelete = question.comments.find((comment) => comment.id === commentId)
+    if (!commentToDelete) return
 
     // Check if user is authorized to delete this comment
     if (commentToDelete.authorId !== currentUser.uid) {
@@ -175,11 +140,7 @@ export default function QuestionDetail() {
     }
 
     try {
-      // Remove the specific comment from Firestore using arrayRemove
-      const questionRef = doc(db, "questions", questionId)
-      await updateDoc(questionRef, {
-        comments: arrayRemove(commentToDelete),
-      })
+      await deleteQuestionComment(commentId)
     } catch (error) {
       console.error("Error deleting comment:", error)
       alert("Failed to delete comment. Please try again.")
@@ -274,7 +235,7 @@ export default function QuestionDetail() {
                   />
                   <span className="font-medium">{question.author}</span>
                   <span className="text-sm text-gray-500">
-                    {question.createdAt?.toDate ? new Date(question.createdAt.toDate()).toLocaleDateString() : "Recent"}
+                    {question.createdAt ? new Date(question.createdAt).toLocaleDateString() : "Recent"}
                   </span>
                 </div>
                 {currentUser && question.authorId === currentUser.uid && (
@@ -326,9 +287,9 @@ export default function QuestionDetail() {
               <h3 className="font-bold mb-3">Comments ({question.comments?.length || 0})</h3>
               <div className="space-y-3">
                 {question.comments && question.comments.length > 0 ? (
-                  question.comments.map((comment, idx) => (
+                  question.comments.map((comment) => (
                     <div
-                      key={comment.id || idx}
+                      key={comment.id}
                       className={`p-3 rounded-lg ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gray-100 border-gray-200"} border`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -340,7 +301,7 @@ export default function QuestionDetail() {
                         </div>
                         {currentUser && comment.authorId === currentUser.uid && (
                           <button
-                            onClick={() => handleDeleteComment(idx)}
+                            onClick={() => handleDeleteComment(comment.id)}
                             className="text-red-500 hover:text-red-700 text-sm"
                             title="Delete comment"
                           >

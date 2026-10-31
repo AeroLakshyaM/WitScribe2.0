@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../Components/Navbar"; // Adjust import path as needed
+import { supabase } from "../lib/supabase";
 
 export default function OTP() {
   const [otp, setOtp] = useState(new Array(6).fill(""));
@@ -9,22 +10,18 @@ export default function OTP() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [email, setEmail] = useState("");
-  const [userId, setUserId] = useState("");
   const inputsRef = useRef([]);
   const navigate = useNavigate();
 
-  // Set up email and userId from session storage
+  // The signup confirmation code is sent to the registered email.
   useEffect(() => {
     const storedEmail = sessionStorage.getItem('registrationEmail');
-    const storedUserId = sessionStorage.getItem('userId');
-    
-    if (!storedEmail || !storedUserId) {
+    if (!storedEmail) {
       navigate('/register');
       return;
     }
     
     setEmail(storedEmail);
-    setUserId(storedUserId);
   }, [navigate]);
 
   // Countdown timer for resend button
@@ -59,20 +56,8 @@ export default function OTP() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/resend-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to resend OTP');
-      }
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email });
+      if (resendError) throw resendError;
 
       setMessage('A new verification code has been sent to your email');
       setCountdown(60); // Disable resend button for 60 seconds
@@ -96,32 +81,18 @@ export default function OTP() {
     setLoading(true);
 
     try {
-      // Combine OTP digits into a single string
       const otpString = otp.join("");
-      
-      const response = await fetch('http://localhost:5000/otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important for cookies/sessions
-        body: JSON.stringify({ 
-          userId,
-          otp: otpString 
-        }),
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: otpString,
+        type: 'email',
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Verification failed');
-      }
+      if (verifyError) throw verifyError;
 
       setMessage('Email verified successfully!');
       
       // Clear session storage
       sessionStorage.removeItem('registrationEmail');
-      sessionStorage.removeItem('userId');
       
       // Redirect to home page after short delay
       setTimeout(() => {

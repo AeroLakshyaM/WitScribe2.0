@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import Navbar from "../Components/Navbar"
 
@@ -17,6 +17,17 @@ export default function QuizPage() {
   const [showResult, setShowResult] = useState(false)
   const [redirectTimer, setRedirectTimer] = useState(30)
   const [showColorGuide, setShowColorGuide] = useState(true)
+
+  const handleNext = useCallback(() => {
+    if (currentQuestion < (quizData?.length || 0) - 1) {
+      setCurrentQuestion(currentQuestion + 1)
+      setSelectedOption(null)
+      setAnswered(false)
+      setTimer(30)
+    } else {
+      setShowResult(true)
+    }
+  }, [currentQuestion, quizData?.length])
 
   useEffect(() => {
     if (showResult) {
@@ -48,7 +59,7 @@ export default function QuizPage() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [currentQuestion, showResult])
+  }, [currentQuestion, showResult, handleNext])
 
   if (!quizData) {
     return (
@@ -80,17 +91,6 @@ export default function QuizPage() {
     const correctIndex = current.answer.charCodeAt(0) - 65
     if (index === correctIndex) {
       setScore((prev) => prev + 1)
-    }
-  }
-
-  const handleNext = () => {
-    if (currentQuestion < quizData.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
-      setSelectedOption(null)
-      setAnswered(false)
-      setTimer(30)
-    } else {
-      setShowResult(true)
     }
   }
 

@@ -4,7 +4,7 @@ import Home from './Pages/Home'
 import Contact from './Pages/Contact'
 import Error from './Pages/Error'
 import FAQ from './Pages/FAQ'
-import { Route, Routes, BrowserRouter, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Route, Routes, BrowserRouter, Navigate, useLocation } from 'react-router-dom'
 import Footer from './Components/Footer'
 import Quiz from './Pages/Quiz'
 import Community from './Pages/Community'
@@ -18,14 +18,15 @@ import Landing from './Pages/Landing'
 import PlayQuiz from './Pages/PlayQuiz'
 import TestRegister from './Pages/TestRegister'
 import PrivateRoute from './Components/PrivateRoute'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './context/useAuth'
 import { Analytics } from "@vercel/analytics/react"
 
 // Only allow About, Contact, Register, Login if not logged in
 const PublicOnlyRoute = ({ children }) => {
   const { currentUser } = useAuth();
   const location = useLocation();
-  const allowed = ['/about', '/contact', '/register', '/login'];
+  const allowed = ['/about', '/contact', '/register', '/login', '/otp'];
   if (!currentUser && allowed.includes(location.pathname)) {
     return children;
   }
@@ -41,7 +42,7 @@ const PublicOnlyRoute = ({ children }) => {
 const ForceLanding = ({ children }) => {
   const { currentUser } = useAuth();
   const location = useLocation();
-  const allowed = ['/', '/landing', '/about', '/contact', '/register', '/login'];
+  const allowed = ['/', '/landing', '/about', '/contact', '/register', '/login', '/otp'];
   if (!currentUser && !allowed.includes(location.pathname)) {
     return <Navigate to="/" replace />;
   }
@@ -84,7 +85,7 @@ function App() {
             {/* Community Routes */}
             <Route path="/community" element={<PrivateRoute><Community /></PrivateRoute>} />
             <Route path="/community/question/:questionId" element={<PrivateRoute><QuestionDetail /></PrivateRoute>} />
-            <Route path='/otp' element={<PrivateRoute><OTP /></PrivateRoute>}/>
+            <Route path='/otp' element={<OTP />}/>
             <Route path='/test' element={<PrivateRoute><TestRegister /></PrivateRoute>}/>
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

@@ -16,7 +16,6 @@ AOS.init({
 export default function LandingPage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [activeSection, setActiveSection] = useState(0);
 
   useEffect(() => {
     setIsLoaded(true);
@@ -28,29 +27,10 @@ export default function LandingPage() {
       });
     };
 
-    const handleScroll = () => {
-      const sections = document.querySelectorAll(".animated-section");
-      const scrollPosition = window.scrollY + window.innerHeight / 2;
-
-      sections.forEach((section, index) => {
-        const sectionTop = section.offsetTop;
-        const sectionHeight = section.offsetHeight;
-
-        if (
-          scrollPosition >= sectionTop &&
-          scrollPosition < sectionTop + sectionHeight
-        ) {
-          setActiveSection(index);
-        }
-      });
-    };
-
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("scroll", handleScroll);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 

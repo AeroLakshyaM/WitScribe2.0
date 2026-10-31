@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../App.css'
-import { Link } from 'react-router';
-import { useNavigate } from 'react-router-dom'; // Add this at the top
+import { Link, useNavigate } from 'react-router-dom';
+import { signIn } from '../services/authService';
 
 
 const Login = () => {
@@ -9,9 +9,13 @@ const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({ username: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const navigate = useNavigate();
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
 
     const newErrors = { username: '', password: '' };
     if (!username.trim()) newErrors.username = 'Please enter your username';
@@ -21,11 +25,17 @@ const Login = () => {
 
     // If no errors, proceed
     if (!newErrors.username && !newErrors.password) {
-      console.log('Logging in with:', { username, password });
-      // You can redirect or show success state here
+      setLoading(true);
+      try {
+        await signIn(username, password);
+        navigate('/home');
+      } catch (loginError) {
+        setError(loginError.message || 'Could not sign in. Check your email and password.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
-  const navigate = useNavigate();
 
 
   return (
@@ -69,12 +79,12 @@ const Login = () => {
           </h2>
           <p className="mt-6 sm:mt-10 text-[18px] sm:text-[20px] md:text-[24px] font-semibold text-black">
             Are You New Here?{' '}
-            <a
-              href="/register"
+            <Link
+              to="/register"
               className="text-red-500 hover:underline inline-flex items-center font-semibold"
             >
               Register Here <span className="ml-1">→</span>
-            </a>
+            </Link>
           </p>
         </div>
 
@@ -84,16 +94,17 @@ const Login = () => {
             onSubmit={handleLogin}
             className="bg-black text-white px-6 py-8 sm:p-10 md:p-12 rounded-3xl w-full max-w-[600px] space-y-6 flex flex-col justify-center"
           >
-            {/* Username */}
+            {error && <p className="rounded bg-red-100 px-3 py-2 text-sm text-red-700">{error}</p>}
+            {/* Email */}
             <div>
-              <label className="block text-[18px] sm:text-[20px] font-semibold mb-2">Username</label>
+              <label className="block text-[18px] sm:text-[20px] font-semibold mb-2">Email</label>
               <div className={`flex items-center bg-white rounded-md px-4 py-3 ${errors.username ? 'border-2 border-red-500' : ''}`}>
                 <span className="text-black mr-2">👤</span>
                 <input
-                  type="text"
+                  type="email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter Username"
+                  placeholder="Enter your email"
                   className="w-full outline-none text-black text-base sm:text-lg bg-transparent"
                 />
               </div>
@@ -140,14 +151,13 @@ const Login = () => {
             </div>
 
             {/* Login Button */}
-            <Link to='/home'>
             <button
               type="submit"
+              disabled={loading}
               className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-md text-base sm:text-lg font-bold"
               >
-              Login
+              {loading ? 'Signing in…' : 'Login'}
             </button>
-                </Link>
 
            
           </form>

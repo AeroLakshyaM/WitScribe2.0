@@ -1,14 +1,23 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase';
-import { db } from '../firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { AuthContext } from './auth-context';
 
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  return useContext(AuthContext);
+const adaptUser = (user) => {
+  if (!user) return null;
+  return {
+    ...user,
+    uid: user.id,
+    displayName: user.user_metadata?.display_name || user.user_metadata?.full_name || user.email,
+    photoURL: user.user_metadata?.avatar_url || '',
+  };
 };
+
+const adaptProfile = (profile) => profile && ({
+  ...profile,
+  displayName: profile.display_name,
+  photoURL: profile.photo_url,
+  postalCode: profile.postal_code,
+});
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -16,35 +25,62 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    let mounted = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) console.error('Could not restore Supabase session:', error);
+      setCurrentUser(adaptUser(data.session?.user));
       setLoading(false);
     });
-    return unsubscribe;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(adaptUser(session?.user));
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Listen to user profile changes in Firestore
   useEffect(() => {
     if (!currentUser) {
       setUserProfile(null);
-      return;
+      return undefined;
     }
-    const userRef = doc(db, 'users', currentUser.uid);
-    const unsubscribe = onSnapshot(userRef, (docSnap) => {
-      setUserProfile(docSnap.data());
-    });
-    return unsubscribe;
+
+    let active = true;
+    const loadProfile = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+      if (error) {
+        console.error('Could not load profile:', error);
+        return;
+      }
+      if (active) setUserProfile(adaptProfile(data));
+    };
+    loadProfile();
+
+    const channel = supabase
+      .channel(`profile-${currentUser.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}`,
+      }, loadProfile)
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
   }, [currentUser]);
 
-  const value = {
-    currentUser,
-    loading,
-    userProfile,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ currentUser, loading, userProfile }}>
       {!loading && children}
     </AuthContext.Provider>
   );
-}; 
+};

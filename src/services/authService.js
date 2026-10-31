@@ -1,66 +1,46 @@
-import { 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup
-} from 'firebase/auth';
-import { auth } from '../firebase';
+import { supabase } from '../lib/supabase';
 
-// Sign up with email and password
-export const signUp = async (email, password, displayName) => {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // Update profile with display name
-    await updateProfile(userCredential.user, { displayName });
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
+export const signUp = async (email, password, displayName, phone = '') => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { display_name: displayName, phone },
+    },
+  });
+  if (error) throw error;
+  return data;
 };
 
-// Sign in with email and password
 export const signIn = async (email, password) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error) {
-    throw error;
-  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data.user;
 };
 
-// Sign in with Google
 export const signInWithGoogle = async () => {
-  try {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    return result.user;
-  } catch (error) {
-    throw error;
-  }
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/home` },
+  });
+  if (error) throw error;
+  return data;
 };
 
-// Sign out
 export const logOut = async () => {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    throw error;
-  }
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 };
 
-// Reset password
 export const resetPassword = async (email) => {
-  try {
-    await sendPasswordResetEmail(auth, email);
-  } catch (error) {
-    throw error;
-  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/login`,
+  });
+  if (error) throw error;
 };
 
-// Get current user
-export const getCurrentUser = () => {
-  return auth.currentUser;
-}; 
+export const getCurrentUser = async () => {
+  const { data, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  return data.user;
+};

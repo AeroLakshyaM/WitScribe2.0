@@ -4,15 +4,11 @@ import perosonol from '../assets/persononlaptop.webp';
 import { FiCamera } from 'react-icons/fi';
 import Navbar from '../Components/Navbar';
 import { logOut } from '../services/authService';
-import { setDoc, doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
-import { useAuth } from "../context/AuthContext";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { onSnapshot } from "firebase/firestore";
+import { useAuth } from "../context/useAuth";
+import { getProfile, updateProfile, uploadAvatar } from '../services/profileService';
 import UserImage from '../assets/user.png';
 
 const UserProfile = () => {
-  const [image, setImage] = useState(null);
   const [profileData, setProfileData] = useState({
     displayName: '',
     email: '',
@@ -26,44 +22,40 @@ const UserProfile = () => {
   const { currentUser, userProfile } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Load user profile from Firestore or create if not exists
+  // Load the profile row created when the Supabase account was registered.
   useEffect(() => {
+    let active = true;
     async function fetchProfile() {
       if (!currentUser) return;
-      const userRef = doc(db, "users", currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setProfileData(userSnap.data());
-      } else {
-        // Create user doc with registration details
-        const newProfile = {
+      try {
+        const profile = await getProfile(currentUser.id);
+        if (active) setProfileData(profile);
+      } catch (error) {
+        console.error('Could not load profile:', error);
+        if (active) setProfileData({
           displayName: currentUser.displayName || '',
-          email: currentUser.email,
-          phone: '',
-          location: '',
-          postalCode: '',
-          photoURL: currentUser.photoURL || '',
-          createdAt: new Date()
-        };
-        await setDoc(userRef, newProfile);
-        setProfileData(newProfile);
+          email: currentUser.email || '',
+          phone: '', location: '', postalCode: '', photoURL: currentUser.photoURL || '',
+        });
+      } finally {
+        if (active) setLoading(false);
       }
-      setLoading(false);
     }
-    if (currentUser) fetchProfile();
+    fetchProfile();
+    return () => { active = false; };
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser) {
-      setProfileData(null);
-      return;
-    }
-    const userRef = doc(db, 'users', currentUser.uid);
-    const unsubscribe = onSnapshot(userRef, (docSnap) => {
-      setProfileData(docSnap.data());
+    if (!userProfile) return;
+    setProfileData({
+      displayName: userProfile.displayName || '',
+      email: userProfile.email || currentUser?.email || '',
+      phone: userProfile.phone || '',
+      location: userProfile.location || '',
+      postalCode: userProfile.postalCode || '',
+      photoURL: userProfile.photoURL || '',
     });
-    return unsubscribe;
-  }, [currentUser]);
+  }, [userProfile, currentUser?.email]);
 
   const handleLogout = async () => {
     await logOut();
@@ -74,28 +66,30 @@ const UserProfile = () => {
   const handleSaveChanges = async (e) => {
     e.preventDefault();
     if (!currentUser) return;
-    const userRef = doc(db, "users", currentUser.uid);
-    await updateDoc(userRef, {
-      displayName: profileData.displayName,
-      phone: profileData.phone,
-      location: profileData.location,
-      postalCode: profileData.postalCode,
-      photoURL: profileData.photoURL,
-    });
-    alert('Profile updated!');
+    try {
+      await updateProfile(currentUser.id, profileData);
+      alert('Profile updated!');
+    } catch (error) {
+      console.error('Could not update profile:', error);
+      alert(error.message || 'Could not update profile.');
+    }
   };
 
   // Handle profile picture upload
   const handleImageUpload = async (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file || !currentUser) return;
-    const storage = getStorage();
-    const storageRef = ref(storage, `profilePictures/${currentUser.uid}`);
-    await uploadBytes(storageRef, file);
-    const url = await getDownloadURL(storageRef);
-    // Save to Firestore
-    await updateDoc(doc(db, 'users', currentUser.uid), { photoURL: url });
-    setProfileData(prev => ({ ...prev, photoURL: url }));
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      alert('Choose an image smaller than 5 MB.');
+      return;
+    }
+    try {
+      const url = await uploadAvatar(currentUser.id, file);
+      setProfileData((prev) => ({ ...prev, photoURL: url }));
+    } catch (error) {
+      console.error('Could not upload avatar:', error);
+      alert(error.message || 'Could not upload your photo.');
+    }
   };
 
   if (loading) return <div>Loading...</div>;

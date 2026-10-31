@@ -560,7 +560,7 @@ const Notes = () => {
     const formattedContent = []
     let currentList = []
 
-    content.forEach((line, index) => {
+    content.forEach((line) => {
       // Detect list items
       if (line.trim().match(/^(-|\*|\d+\.)\s/)) {
         // Add to current list

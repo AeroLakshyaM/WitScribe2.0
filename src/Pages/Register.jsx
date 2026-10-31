@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signUp, signIn, signInWithGoogle, resetPassword } from '../services/authService';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
 
 const Authentication = () => {
   const navigate = useNavigate();
@@ -86,17 +84,16 @@ const Authentication = () => {
 
     try {
       if (isLogin) {
-        // Login with Firebase
         await signIn(email, password);
         navigate('/home');
       } else {
-        // Register with Firebase
-        await signUp(email, password, username);
-        // Optionally store extra info in your backend here, but not for auth
-        sessionStorage.setItem('registrationEmail', email);
-        sessionStorage.setItem('registrationPhone', phone);
-        alert('Registration successful! Please verify your email.');
-        navigate('/home');
+        const { session } = await signUp(email, password, username, phone);
+        if (session) {
+          navigate('/home');
+        } else {
+          sessionStorage.setItem('registrationEmail', email);
+          navigate('/otp');
+        }
       }
     } catch (err) {
       setError(err.message || 'Something went wrong');
@@ -299,6 +296,15 @@ const Authentication = () => {
                 </button>
               </div>
             )}
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="w-full rounded-md border border-gray-300 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              Continue with Google
+            </button>
 
             
           </form>

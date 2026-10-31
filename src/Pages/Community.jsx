@@ -1,19 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { db } from "../firebase";
+import { useAuth } from '../context/useAuth';
 import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-  arrayUnion,
-  increment,
-  serverTimestamp
-} from "firebase/firestore";
-import { useAuth } from '../context/AuthContext';
+  createQuestion,
+  listQuestions,
+  subscribeToQuestions,
+  toggleQuestionLike,
+} from '../services/communityService';
 
 export default function Community() {
   const navigate = useNavigate();
@@ -23,24 +16,27 @@ export default function Community() {
   const [questions, setQuestions] = useState([]);
   const [newQuestion, setNewQuestion] = useState({ title: "", description: "" });
   const [search, setSearch] = useState("");
-  const [commentInput, setCommentInput] = useState({});
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
 
-  // Fetch questions in real-time
+  // Load the feed and keep it current as questions, likes, and comments change.
   useEffect(() => {
-    const q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const questionData = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data(),
-        // Check if current user has liked this question
-        isLiked: currentUser ? (doc.data().likedBy || []).includes(currentUser.uid) : false
-      }));
-      setQuestions(questionData);
-    });
-    return unsubscribe;
-  }, [currentUser]);
+    let active = true;
+    const refresh = async () => {
+      try {
+        const result = await listQuestions(currentUser?.id);
+        if (active) setQuestions(result);
+      } catch (error) {
+        console.error('Error loading community questions:', error);
+      }
+    };
+    refresh();
+    const channel = subscribeToQuestions(refresh, (error) => console.error(error));
+    return () => {
+      active = false;
+      channel.unsubscribe();
+    };
+  }, [currentUser?.id]);
 
   // Reset mobile UI states when resizing to desktop
   useEffect(() => {
@@ -59,20 +55,11 @@ export default function Community() {
     e.preventDefault();
     if (newQuestion.title.trim() && currentUser) {
       try {
-        const questionRef = await addDoc(collection(db, "questions"), {
-          title: newQuestion.title,
-          description: newQuestion.description,
-          author: currentUser.displayName || currentUser.email,
-          authorId: currentUser.uid,
-          likes: 0,
-          likedBy: [],
-          comments: [],
-          createdAt: serverTimestamp()
-        });
+        const questionId = await createQuestion({ ...newQuestion, user: currentUser });
         setNewQuestion({ title: "", description: "" });
         setIsModalOpen(false);
         // Navigate to the new question
-        navigate(`/community/question/${questionRef.id}`);
+        navigate(`/community/question/${questionId}`);
       } catch (error) {
         console.error("Error adding question:", error);
       }
@@ -89,48 +76,10 @@ export default function Community() {
       return;
     }
     
-    const questionRef = doc(db, "questions", question.id);
-    const userId = currentUser.uid;
-    
     try {
-      await updateDoc(questionRef, {
-        likes: question.likedBy?.includes(userId) ? increment(-1) : increment(1),
-        likedBy: question.likedBy?.includes(userId)
-          ? question.likedBy.filter(u => u !== userId)
-          : [...(question.likedBy || []), userId]
-      });
+      await toggleQuestionLike(question.id, currentUser.id, question.isLiked);
     } catch (error) {
       console.error("Error updating like:", error);
-    }
-  };
-
-  // Add a comment
-  const handleAddComment = async (questionId, e) => {
-    e.preventDefault(); // Prevent navigation
-    e.stopPropagation(); // Stop event bubbling
-    
-    if (!currentUser) {
-      alert("Please sign in to comment");
-      return;
-    }
-    
-    const comment = commentInput[questionId];
-    if (!comment) return;
-    
-    const questionRef = doc(db, "questions", questionId);
-    
-    try {
-      await updateDoc(questionRef, {
-        comments: arrayUnion({
-          author: currentUser.displayName || currentUser.email,
-          authorId: currentUser.uid,
-          text: comment,
-          createdAt: new Date().toISOString()
-        })
-      });
-      setCommentInput({ ...commentInput, [questionId]: "" });
-    } catch (error) {
-      console.error("Error adding comment:", error);
     }
   };
 

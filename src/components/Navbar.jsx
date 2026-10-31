@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from "react"
 import "../App.css"
-import { Link, useNavigate, useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Menu, X, Home, BookOpen, Users } from "lucide-react"
-import { toast } from "react-toastify"
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const navigate = useNavigate()
   const location = useLocation()
 
   const toggleMenu = () => {
