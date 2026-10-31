@@ -12,7 +12,7 @@ const Home = () => {
   const navigate = useNavigate()
 
   const API_KEY =
-    "sd_a4bb48c811685b2bc4911cfc5434188e"
+    "sd_6edb143bf00e360e0b4468f9c273bf6f"
   // Read Gemini API key from Vite env
   const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
   const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-3-flash-preview"
